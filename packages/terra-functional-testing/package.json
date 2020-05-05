@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "description": "A functional testing utility for applications built using Terra.",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "lint": "eslint --ext .js,.jsx .",
+    "jest": "jest",
+    "test": "npm run jest"
   },
   "repository": {
     "type": "git",
