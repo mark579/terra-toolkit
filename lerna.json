@@ -1,5 +1,12 @@
 {
   "version": "independent",
+  "command": {
+    "publish": {
+      "ignoreChanges": [
+        "packages/terra-functional-testing/**"
+      ]
+    }
+  },
   "packages": [
     "packages/*"
   ]
