@@ -1,5 +1,5 @@
 const { program } = require('commander');
-const TestRunner = require('../test-runner');
+const { TestRunner } = require('../test-runner');
 
 const run = async () => {
   program
