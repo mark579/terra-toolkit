@@ -8,7 +8,7 @@
   },
   "scripts": {
     "lint": "eslint --ext .js,.jsx .",
-    "jest": "jest",
+    "jest": "jest --config ../../jest.config.js",
     "test": "npm run jest"
   },
   "repository": {

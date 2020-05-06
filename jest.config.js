@@ -5,7 +5,7 @@ module.exports = {
   clearMocks: true,
   collectCoverage: true,
   collectCoverageFrom: [
-    'packages/**/lib/*.js',
+    'packages/**/lib/**/*.js',
   ],
   coverageDirectory: 'tests/jest/reports/coverage',
   coverageReporters: [

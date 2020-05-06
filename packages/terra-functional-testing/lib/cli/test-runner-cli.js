@@ -7,7 +7,7 @@ const run = async () => {
 
   program.parse(process.argv);
 
-  TestRunner.run(program);
+  TestRunner.run(program.opts());
 };
 
 module.exports = { run };
