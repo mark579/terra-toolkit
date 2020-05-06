@@ -35,7 +35,9 @@ class TestRunner {
       const configPath = TestRunner.configPath(config);
       const testRunner = new Launcher(configPath);
 
-      process.exit(await testRunner.run());
+      const exitCode = await testRunner.run();
+
+      process.exit(exitCode);
     } catch (error) {
       console.error('Launcher failed to start the test.\n', error);
       process.exit(1);
