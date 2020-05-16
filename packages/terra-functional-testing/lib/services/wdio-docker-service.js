@@ -14,7 +14,7 @@ class DockerService {
   async onPrepare() {
     try {
       await this.initializeSwarm();
-      // await this.removeStack();
+      await this.removeStack();
       await this.deployStack();
     } catch (error) {
       return Promise.reject(error);
@@ -44,7 +44,11 @@ class DockerService {
   async deployStack() {
     const composeFilePath = path.resolve(__dirname, '../docker/docker-compose.yml');
 
-    return exec(`docker stack deploy -c ${composeFilePath} wdio`);
+    await exec(`docker stack deploy -c ${composeFilePath} wdio`);
+
+    return new Promise((resolve, reject) => {
+      setTimeout(() => resolve(), 30000);
+    });
   }
 
   /**
@@ -65,7 +69,7 @@ class DockerService {
       let timeout = null;
 
       const pollNetwork = async () => {
-        if (retryCount >= 10) {
+        if (retryCount >= 100) {
           clearTimeout(timeout);
           timeout = null;
           reject(Error('[terra-functional-testing:wdio-docker-service] Timeout waiting for docker network to shut down.'));
@@ -90,7 +94,7 @@ class DockerService {
    * @returns {Promise} - A promise that resolves when the docker stack and network have been removed.
    */
   async onComplete() {
-    // return this.removeStack();
+    return this.removeStack();
   }
 }
 
