@@ -1,24 +1,20 @@
+/* eslint-disable class-methods-use-this */
 const path = require('path');
 const util = require('util');
 const exec = util.promisify(require('child_process').exec);
 
-class DockerService {
-  constructor(options) {
-    this.options = options || {};
-  }
+const NETWORK_RETRY_COUNT = 60;
+const NETWORK_POLL_INTERVAL = 1000;
 
+class DockerService {
   /**
    * Prepares the docker testing environment.
    * @returns {Promise} - A promise that resolves when the testing environment is ready.
    */
   async onPrepare() {
-    try {
-      await this.initializeSwarm();
-      await this.removeStack();
-      await this.deployStack();
-    } catch (error) {
-      return Promise.reject(error);
-    }
+    await this.initializeSwarm();
+    // await this.removeStack();
+    await this.deployStack();
   }
 
   /**
@@ -26,8 +22,9 @@ class DockerService {
    * @returns {Promise} - A promise that resolves when the swarm is initialized.
    */
   async initializeSwarm() {
-    const { stdout: dockerInfo } = await exec('docker info --format "{{json .}}"');
+    console.log('[terra-functional-testing:wdio-docker-service] Initializing docker swarm.');
 
+    const { stdout: dockerInfo } = await exec('docker info --format "{{json .}}"');
     const { Swarm } = JSON.parse(dockerInfo);
 
     if (Swarm.LocalNodeState === 'active') {
@@ -39,16 +36,16 @@ class DockerService {
 
   /**
    * Deploys the docker stack.
-   * @returns {Promise} - A promise that resolves when the docker stack is deployed. 
+   * @returns {Promise} - A promise that resolves when the docker stack is deployed.
    */
   async deployStack() {
+    console.log('[terra-functional-testing:wdio-docker-service] Deploying docker stack.');
+
     const composeFilePath = path.resolve(__dirname, '../docker/docker-compose.yml');
 
     await exec(`docker stack deploy -c ${composeFilePath} wdio`);
 
-    return new Promise((resolve, reject) => {
-      setTimeout(() => resolve(), 30000);
-    });
+    return this.awaitNetworkReady();
   }
 
   /**
@@ -56,6 +53,8 @@ class DockerService {
    * @returns {Promise} - A promise that resolves when the docker stack has been removed.
    */
   async removeStack() {
+    console.log('[terra-functional-testing:wdio-docker-service] Removing docker stack.');
+
     const { stdout: stackInfo } = await exec('docker stack ls | grep wdio || true');
 
     if (!stackInfo) {
@@ -64,28 +63,92 @@ class DockerService {
 
     await exec('docker stack rm wdio');
 
+    // Ensure the network has been removed.
+    return this.awaitNetworkRemoval();
+  }
+
+  /**
+   * Ensures the docker network has been shut down.
+   * @returns {Promise} - A promise that resolves when the docker network has been removed.
+   */
+  async awaitNetworkRemoval() {
     return new Promise((resolve, reject) => {
       let retryCount = 0;
-      let timeout = null;
+      let pollTimeout = null;
 
+      /**
+       * Polls the network to verify it has been shut down.
+       */
       const pollNetwork = async () => {
-        if (retryCount >= 100) {
-          clearTimeout(timeout);
-          timeout = null;
+        if (retryCount >= NETWORK_RETRY_COUNT) {
+          clearTimeout(pollTimeout);
+          pollTimeout = null;
           reject(Error('[terra-functional-testing:wdio-docker-service] Timeout waiting for docker network to shut down.'));
         }
 
-        const { stdout: networkStatus } = await exec('docker network ls | grep wdio || true');
+        try {
+          console.log('[terra-functional-testing:wdio-docker-service] Waiting for docker to be removed.');
 
-        if (!networkStatus) {
-          resolve();
+          const { stdout: networkStatus } = await exec('docker network ls | grep wdio || true');
+
+          if (!networkStatus) {
+            clearTimeout(pollTimeout);
+            pollTimeout = null;
+            resolve();
+          } else {
+            retryCount += 1;
+            pollTimeout = setTimeout(pollNetwork, NETWORK_POLL_INTERVAL);
+          }
+        } catch (error) {
+          retryCount += 1;
+          pollTimeout = setTimeout(pollNetwork, NETWORK_POLL_INTERVAL);
+        }
+      };
+
+      pollTimeout = setTimeout(pollNetwork, NETWORK_POLL_INTERVAL);
+    });
+  }
+
+  /**
+   * Ensures the docker network is ready.
+   * @returns {Promise} - A promise that resolves when the docker network is ready.
+   */
+  async awaitNetworkReady() {
+    console.log('[terra-functional-testing:wdio-docker-service] Waiting for docker to become ready.');
+
+    return new Promise((resolve, reject) => {
+      let retryCount = 0;
+      let pollTimeout = null;
+
+      const pollNetwork = async () => {
+        if (retryCount >= NETWORK_RETRY_COUNT) {
+          clearTimeout(pollTimeout);
+          pollTimeout = null;
+          reject(Error('[terra-functional-testing:wdio-docker-service] Timeout waiting for docker network to be ready.'));
         }
 
-        retryCount++;
-        timeout = setTimeout(pollNetwork, 200);
-      }
+        try {
+          const { stdout: networkStatus, stderr } = await exec('curl -sSL http://localhost:4444/wd/hub/status');
+          const { value } = JSON.parse(networkStatus);
 
-      timeout = setTimeout(pollNetwork, 200);
+          console.log('Waiting stdout', networkStatus);
+          console.log('Waiting stderr', stderr);
+
+          if (value.ready) {
+            clearTimeout(pollTimeout);
+            pollTimeout = null;
+            resolve();
+          } else {
+            retryCount += 1;
+            pollTimeout = setTimeout(pollNetwork, NETWORK_POLL_INTERVAL);
+          }
+        } catch (error) {
+          retryCount += 1;
+          pollTimeout = setTimeout(pollNetwork, NETWORK_POLL_INTERVAL);
+        }
+      };
+
+      pollTimeout = setTimeout(pollNetwork, NETWORK_POLL_INTERVAL);
     });
   }
 
@@ -93,9 +156,10 @@ class DockerService {
    * Removes the docker stack and network.
    * @returns {Promise} - A promise that resolves when the docker stack and network have been removed.
    */
-  async onComplete() {
-    return this.removeStack();
-  }
+  // afterSession() {
+  //   console.log('ON COMPLETE');
+  //   // return this.removeStack();
+  // }
 }
 
 module.exports = DockerService;
