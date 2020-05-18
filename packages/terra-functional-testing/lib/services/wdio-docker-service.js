@@ -13,7 +13,6 @@ class DockerService {
    */
   async onPrepare() {
     await this.initializeSwarm();
-    // await this.removeStack();
     await this.deployStack();
   }
 
@@ -39,6 +38,9 @@ class DockerService {
    * @returns {Promise} - A promise that resolves when the docker stack is deployed.
    */
   async deployStack() {
+    // Remove the previous stack if one exists.
+    await this.removeStack();
+
     console.log('[terra-functional-testing:wdio-docker-service] Deploying docker stack.');
 
     const composeFilePath = path.resolve(__dirname, '../docker/docker-compose.yml');
@@ -53,13 +55,13 @@ class DockerService {
    * @returns {Promise} - A promise that resolves when the docker stack has been removed.
    */
   async removeStack() {
-    console.log('[terra-functional-testing:wdio-docker-service] Removing docker stack.');
-
     const { stdout: stackInfo } = await exec('docker stack ls | grep wdio || true');
 
     if (!stackInfo) {
       return Promise.resolve();
     }
+
+    console.log('[terra-functional-testing:wdio-docker-service] Removing docker stack.');
 
     await exec('docker stack rm wdio');
 
@@ -128,11 +130,10 @@ class DockerService {
         }
 
         try {
-          const { stdout: networkStatus, stderr } = await exec('curl -sSL http://localhost:4444/wd/hub/status');
+          const { stdout: networkStatus } = await exec('curl -sSL http://localhost:4444/wd/hub/status');
           const { value } = JSON.parse(networkStatus);
 
-          console.log('Waiting stdout', networkStatus);
-          console.log('Waiting stderr', stderr);
+          console.log('[terra-functional-testing:wdio-docker-service] Waiting for docker to become ready.');
 
           if (value.ready) {
             clearTimeout(pollTimeout);
@@ -156,10 +157,11 @@ class DockerService {
    * Removes the docker stack and network.
    * @returns {Promise} - A promise that resolves when the docker stack and network have been removed.
    */
-  // afterSession() {
-  //   console.log('ON COMPLETE');
-  //   // return this.removeStack();
-  // }
+  afterSession() {
+    console.log('ON COMPLETE');
+    return this.removeStack();
+    // return Promise.resolve();
+  }
 }
 
 module.exports = DockerService;
