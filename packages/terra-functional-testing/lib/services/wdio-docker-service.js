@@ -72,88 +72,76 @@ class DockerService {
   }
 
   /**
-   * Ensures the docker network has been shut down.
-   * @returns {Promise} - A promise that resolves when the docker network has been removed.
+   * Waits for a command to complete successfully.
+   * @param {string} command - The shell command to run.
+   * @param {func} callback - A callback function to accept or reject the result of the command. Must return a promise.
    */
-  async awaitNetworkRemoval() {
+  async pollCommand(command, callback) {
     return new Promise((resolve, reject) => {
       let retryCount = 0;
       let pollTimeout = null;
 
-      /**
-       * Polls the network to verify it has been shut down.
-       */
-      const pollNetwork = async () => {
+      const poll = async () => {
         if (retryCount >= NETWORK_RETRY_COUNT) {
           clearTimeout(pollTimeout);
           pollTimeout = null;
-          reject(Error(logger.format('Timeout waiting for docker network to shut down.')));
+          reject(Error(logger.format('Timeout. Exceeded retry count.')));
         }
 
         try {
-          const { stdout: networkStatus } = await exec('docker network ls | grep wdio || true');
+          const result = await exec(command);
 
-          if (!networkStatus) {
-            clearTimeout(pollTimeout);
-            pollTimeout = null;
-            resolve();
-          } else {
-            retryCount += 1;
-            pollTimeout = setTimeout(pollNetwork, NETWORK_POLL_INTERVAL);
-          }
+          await callback(result).then(() => resolve());
         } catch (error) {
           retryCount += 1;
-          pollTimeout = setTimeout(pollNetwork, NETWORK_POLL_INTERVAL);
+          pollTimeout = setTimeout(poll, NETWORK_POLL_INTERVAL);
         }
       };
 
-      pollTimeout = setTimeout(pollNetwork, NETWORK_POLL_INTERVAL);
+      pollTimeout = setTimeout(poll, NETWORK_POLL_INTERVAL);
     });
   }
 
   /**
-   * Ensures the docker network is ready.
-   * @returns {Promise} - A promise that resolves when the docker network is ready.
+   * Ensures the docker network has been shut down.
    */
+  async awaitNetworkRemoval() {
+    await this.pollCommand('docker network ls | grep wdio || true', (result) => (
+      new Promise((resolve, reject) => {
+        const { stdout: networkStatus } = result;
+
+        // Reject if there is an active network returned.
+        if (networkStatus) {
+          reject();
+        } else {
+          resolve();
+        }
+      })));
+  }
+
+  /**
+ * Ensures the docker network is ready.
+ * @returns {Promise} - A promise that resolves when the docker network is ready.
+ */
   async awaitNetworkReady() {
     logger.log('Waiting for docker to become ready.');
 
-    return new Promise((resolve, reject) => {
-      let retryCount = 0;
-      let pollTimeout = null;
+    await this.pollCommand('curl -sSL http://localhost:4444/wd/hub/status', (result) => (
+      new Promise((resolve, reject) => {
+        const { stdout } = result;
+        const { value } = JSON.parse(stdout);
 
-      const pollNetwork = async () => {
-        if (retryCount >= NETWORK_RETRY_COUNT) {
-          clearTimeout(pollTimeout);
-          pollTimeout = null;
-          reject(Error(logger.format('Timeout waiting for docker network to be ready.')));
+        if (value.ready) {
+          resolve();
+        } else {
+          reject();
         }
-
-        try {
-          const { stdout: networkStatus } = await exec('curl -sSL http://localhost:4444/wd/hub/status');
-          const { value } = JSON.parse(networkStatus);
-
-          if (value.ready) {
-            clearTimeout(pollTimeout);
-            pollTimeout = null;
-            resolve();
-          } else {
-            retryCount += 1;
-            pollTimeout = setTimeout(pollNetwork, NETWORK_POLL_INTERVAL);
-          }
-        } catch (error) {
-          retryCount += 1;
-          pollTimeout = setTimeout(pollNetwork, NETWORK_POLL_INTERVAL);
-        }
-      };
-
-      pollTimeout = setTimeout(pollNetwork, NETWORK_POLL_INTERVAL);
-    });
+      })));
   }
 
   /**
-   * Removes the docker stack and network.
-   */
+* Removes the docker stack and network.
+*/
   async onComplete() {
     await this.removeStack();
   }
