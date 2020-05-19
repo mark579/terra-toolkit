@@ -1,7 +1,11 @@
 /* eslint-disable class-methods-use-this */
 const path = require('path');
 const util = require('util');
-const exec = util.promisify(require('child_process').exec);
+const childProcess = require('child_process');
+const Logger = require('../logger/logger');
+
+const exec = util.promisify(childProcess.exec);
+const logger = new Logger({ prefix: 'wdio-docker-service' });
 
 const NETWORK_RETRY_COUNT = 60;
 const NETWORK_POLL_INTERVAL = 1000;
@@ -9,7 +13,6 @@ const NETWORK_POLL_INTERVAL = 1000;
 class DockerService {
   /**
    * Prepares the docker testing environment.
-   * @returns {Promise} - A promise that resolves when the testing environment is ready.
    */
   async onPrepare() {
     await this.initializeSwarm();
@@ -21,7 +24,7 @@ class DockerService {
    * @returns {Promise} - A promise that resolves when the swarm is initialized.
    */
   async initializeSwarm() {
-    console.log('[terra-functional-testing:wdio-docker-service] Initializing docker swarm.');
+    logger.log('Initializing docker swarm.');
 
     const { stdout: dockerInfo } = await exec('docker info --format "{{json .}}"');
     const { Swarm } = JSON.parse(dockerInfo);
@@ -35,19 +38,18 @@ class DockerService {
 
   /**
    * Deploys the docker stack.
-   * @returns {Promise} - A promise that resolves when the docker stack is deployed.
    */
   async deployStack() {
     // Remove the previous stack if one exists.
     await this.removeStack();
 
-    console.log('[terra-functional-testing:wdio-docker-service] Deploying docker stack.');
+    logger.log('Deploying docker stack.');
 
     const composeFilePath = path.resolve(__dirname, '../docker/docker-compose.yml');
 
     await exec(`docker stack deploy -c ${composeFilePath} wdio`);
 
-    return this.awaitNetworkReady();
+    await this.awaitNetworkReady();
   }
 
   /**
@@ -61,7 +63,7 @@ class DockerService {
       return Promise.resolve();
     }
 
-    console.log('[terra-functional-testing:wdio-docker-service] Removing docker stack.');
+    logger.log('Removing docker stack.');
 
     await exec('docker stack rm wdio');
 
@@ -85,12 +87,10 @@ class DockerService {
         if (retryCount >= NETWORK_RETRY_COUNT) {
           clearTimeout(pollTimeout);
           pollTimeout = null;
-          reject(Error('[terra-functional-testing:wdio-docker-service] Timeout waiting for docker network to shut down.'));
+          reject(Error(logger.format('Timeout waiting for docker network to shut down.')));
         }
 
         try {
-          console.log('[terra-functional-testing:wdio-docker-service] Waiting for docker to be removed.');
-
           const { stdout: networkStatus } = await exec('docker network ls | grep wdio || true');
 
           if (!networkStatus) {
@@ -116,7 +116,7 @@ class DockerService {
    * @returns {Promise} - A promise that resolves when the docker network is ready.
    */
   async awaitNetworkReady() {
-    console.log('[terra-functional-testing:wdio-docker-service] Waiting for docker to become ready.');
+    logger.log('Waiting for docker to become ready.');
 
     return new Promise((resolve, reject) => {
       let retryCount = 0;
@@ -126,14 +126,12 @@ class DockerService {
         if (retryCount >= NETWORK_RETRY_COUNT) {
           clearTimeout(pollTimeout);
           pollTimeout = null;
-          reject(Error('[terra-functional-testing:wdio-docker-service] Timeout waiting for docker network to be ready.'));
+          reject(Error(logger.format('Timeout waiting for docker network to be ready.')));
         }
 
         try {
           const { stdout: networkStatus } = await exec('curl -sSL http://localhost:4444/wd/hub/status');
           const { value } = JSON.parse(networkStatus);
-
-          console.log('[terra-functional-testing:wdio-docker-service] Waiting for docker to become ready.');
 
           if (value.ready) {
             clearTimeout(pollTimeout);
@@ -155,12 +153,9 @@ class DockerService {
 
   /**
    * Removes the docker stack and network.
-   * @returns {Promise} - A promise that resolves when the docker stack and network have been removed.
    */
-  afterSession() {
-    console.log('ON COMPLETE');
-    return this.removeStack();
-    // return Promise.resolve();
+  async onComplete() {
+    await this.removeStack();
   }
 }
 
