@@ -24,14 +24,14 @@ class DockerService {
    * @returns {Promise} - A promise that resolves when the swarm is initialized.
    */
   async initializeSwarm() {
-    logger.log('Initializing docker swarm.');
-
     const { stdout: dockerInfo } = await exec('docker info --format "{{json .}}"');
     const { Swarm } = JSON.parse(dockerInfo);
 
     if (Swarm.LocalNodeState === 'active') {
       return Promise.resolve();
     }
+
+    logger.log('Initializing docker swarm.');
 
     return exec('docker swarm init');
   }
