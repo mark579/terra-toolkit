@@ -120,9 +120,9 @@ class DockerService {
   }
 
   /**
- * Ensures the docker network is ready.
- * @returns {Promise} - A promise that resolves when the docker network is ready.
- */
+   * Ensures the docker network is ready.
+   * @returns {Promise} - A promise that resolves when the docker network is ready.
+   */
   async awaitNetworkReady() {
     logger.log('Waiting for docker to become ready.');
 
@@ -140,8 +140,8 @@ class DockerService {
   }
 
   /**
-* Removes the docker stack and network.
-*/
+   * Removes the docker stack and network.
+   */
   async onComplete() {
     await this.removeStack();
   }
