@@ -7,33 +7,33 @@ const Logger = require('../logger/logger');
 const exec = util.promisify(childProcess.exec);
 const logger = new Logger({ prefix: 'wdio-docker-service' });
 
-const NETWORK_RETRY_COUNT = 60;
-const NETWORK_POLL_INTERVAL = 1000;
+const RETRY_COUNT = 30;
+const POLL_INTERVAL = 2000;
 
 class DockerService {
   /**
    * Prepares the docker testing environment.
    */
-  async onPrepare() {
+  async onPrepare(config) {
+    this.host = config.hostname;
+    this.port = config.port;
+
     await this.initializeSwarm();
     await this.deployStack();
   }
 
   /**
    * Initializes a docker swarm instance.
-   * @returns {Promise} - A promise that resolves when the swarm is initialized.
    */
   async initializeSwarm() {
     const { stdout: dockerInfo } = await exec('docker info --format "{{json .}}"');
     const { Swarm } = JSON.parse(dockerInfo);
 
-    if (Swarm.LocalNodeState === 'active') {
-      return Promise.resolve();
+    if (Swarm.LocalNodeState !== 'active') {
+      logger.log('Initializing docker swarm.');
+
+      await exec('docker swarm init');
     }
-
-    logger.log('Initializing docker swarm.');
-
-    return exec('docker swarm init');
   }
 
   /**
@@ -54,21 +54,19 @@ class DockerService {
 
   /**
    * Removes the docker stack.
-   * @returns {Promise} - A promise that resolves when the docker stack has been removed.
    */
   async removeStack() {
     const { stdout: stackInfo } = await exec('docker stack ls | grep wdio || true');
 
-    if (!stackInfo) {
-      return Promise.resolve();
+    if (stackInfo) {
+      logger.log('Removing docker stack.');
+
+      await exec('docker stack rm wdio');
+
+      // Ensure the services and network have been removed.
+      await this.awaitServiceRemoval();
+      await this.awaitNetworkRemoval();
     }
-
-    logger.log('Removing docker stack.');
-
-    await exec('docker stack rm wdio');
-
-    // Ensure the network has been removed.
-    return this.awaitNetworkRemoval();
   }
 
   /**
@@ -82,7 +80,7 @@ class DockerService {
       let pollTimeout = null;
 
       const poll = async () => {
-        if (retryCount >= NETWORK_RETRY_COUNT) {
+        if (retryCount >= RETRY_COUNT) {
           clearTimeout(pollTimeout);
           pollTimeout = null;
           reject(Error(logger.format('Timeout. Exceeded retry count.')));
@@ -94,11 +92,11 @@ class DockerService {
           await callback(result).then(() => resolve());
         } catch (error) {
           retryCount += 1;
-          pollTimeout = setTimeout(poll, NETWORK_POLL_INTERVAL);
+          pollTimeout = setTimeout(poll, POLL_INTERVAL);
         }
       };
 
-      pollTimeout = setTimeout(poll, NETWORK_POLL_INTERVAL);
+      pollTimeout = setTimeout(poll, POLL_INTERVAL);
     });
   }
 
@@ -120,13 +118,30 @@ class DockerService {
   }
 
   /**
+   * Ensures the docker services have been shut down.
+   */
+  async awaitServiceRemoval() {
+    await this.pollCommand('docker service ls | grep wdio || true', (result) => (
+      new Promise((resolve, reject) => {
+        const { stdout: serviceStatus } = result;
+        console.log('Await service removal', serviceStatus);
+        // Reject if there is an active service returned.
+        if (serviceStatus) {
+          reject();
+        } else {
+          resolve();
+        }
+      })));
+  }
+
+  /**
    * Ensures the docker network is ready.
    * @returns {Promise} - A promise that resolves when the docker network is ready.
    */
   async awaitNetworkReady() {
     logger.log('Waiting for docker to become ready.');
 
-    await this.pollCommand('curl -sSL http://localhost:4444/wd/hub/status', (result) => (
+    await this.pollCommand(`curl -sSL http://${this.host}:${this.port}/wd/hub/status`, (result) => (
       new Promise((resolve, reject) => {
         const { stdout } = result;
         const { value } = JSON.parse(stdout);
