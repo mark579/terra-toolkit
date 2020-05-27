@@ -124,7 +124,7 @@ class DockerService {
     await this.pollCommand('docker service ls | grep wdio || true', (result) => (
       new Promise((resolve, reject) => {
         const { stdout: serviceStatus } = result;
-        console.log('Await service removal', serviceStatus);
+
         // Reject if there is an active service returned.
         if (serviceStatus) {
           reject();
