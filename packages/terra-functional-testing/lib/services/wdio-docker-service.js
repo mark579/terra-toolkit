@@ -73,6 +73,7 @@ class DockerService {
    * Waits for a command to complete successfully.
    * @param {string} command - The shell command to run.
    * @param {func} callback - A callback function to accept or reject the result of the command. Must return a promise.
+   * @returns {Promise} - A promise that resolves when the callback accepts the command response.
    */
   async pollCommand(command, callback) {
     return new Promise((resolve, reject) => {
@@ -136,7 +137,6 @@ class DockerService {
 
   /**
    * Ensures the docker network is ready.
-   * @returns {Promise} - A promise that resolves when the docker network is ready.
    */
   async awaitNetworkReady() {
     logger.log('Waiting for docker to become ready.');
