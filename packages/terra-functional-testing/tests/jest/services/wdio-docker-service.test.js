@@ -1,4 +1,5 @@
 jest.mock('util');
+jest.mock('../../../lib/logger/logger');
 
 const util = require('util');
 const path = require('path');
