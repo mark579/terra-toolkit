@@ -1,5 +1,3 @@
-/* eslint-disable no-console */
-
 class Logger {
   constructor(options) {
     const { prefix } = options;
@@ -21,6 +19,7 @@ class Logger {
    * @param {string} text - The text to be logged.
    */
   log(text) {
+    // eslint-disable-next-line no-console
     console.log(this.format(text));
   }
 }
