@@ -74,6 +74,7 @@ module.exports = {
         after: true,
         before: true,
         browser: true,
+        FullStack: true,
         Terra: true,
       },
     },
