@@ -1,5 +1,6 @@
 const SeleniumDockerService = require('../services/wdio-selenium-docker-service');
 const TerraService = require('../services/wdio-terra-service');
+const WebpackService = require('../services/wdio-webpack-service');
 
 const { CI } = process.env;
 
@@ -116,6 +117,7 @@ exports.config = {
     // Do not add the docker service when building on CI.
     ...(CI ? [] : [[SeleniumDockerService]]),
     [TerraService],
+    [WebpackService],
   ],
   // Framework you want to run your specs with.
   // The following are supported: Mocha, Jasmine, and Cucumber
