@@ -1,3 +1,4 @@
+const fs = require('fs');
 const express = require('express');
 const Logger = require('../logger/logger');
 
@@ -23,9 +24,14 @@ class ExpressServer {
    * @returns {Promise} - A promise that resolves when the server has started.
    */
   start() {
-    logger.info('Starting the express server.');
+    if (!fs.existsSync(this.site) || (fs.lstatSync(this.site).isDirectory() && fs.readdirSync(this.site).length === 0)) {
+      logger.warn(`Cannot serve content from ${this.site} because it does not exist or it is empty.`);
+      return Promise.reject();
+    }
 
     const startPromise = new Promise((resolve, reject) => {
+      logger.info('Starting the express server.');
+
       const app = express();
 
       app.use(express.static(this.site, {
