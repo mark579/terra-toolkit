@@ -27,12 +27,7 @@ module.exports = (env = {}) => {
       path: path.join(process.cwd(), 'build'),
     },
     devServer: {
-      host: '0.0.0.0',
       publicPath: '/',
-      stats: {
-        colors: true,
-        children: false,
-      },
     },
     mode: 'production',
   };

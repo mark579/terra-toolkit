@@ -4,22 +4,6 @@ const Logger = require('../logger/logger');
 
 const logger = new Logger({ prefix: 'webpack-server' });
 
-// Create a new proxy watch function
-const watch = (compiler) => {
-  // Store off original watch function.
-  const origWatch = compiler.watch;
-  // Return new watch function
-  return (watchOptions, handler) => {
-    // Call original watch functions with the compiler as 'this'
-    const watcher = origWatch.call(compiler, watchOptions, handler);
-    // Remove the 'watch' function from the returned watcher.
-    watcher.watch = () => {
-      logger.log('Hot reloading has been disabled for tests.');
-    };
-    return watcher;
-  };
-};
-
 class WebpackServer {
   constructor(options = {}) {
     const {
@@ -51,7 +35,28 @@ class WebpackServer {
   }
 
   /**
+   * Webpack watch override.
+   * @param {Object} compiler - The webpack compiler.
+   * @return {func} - A watch function override.
+   */
+  static watch(compiler) {
+    // Store off the original watch function.
+    const origWatch = compiler.watch;
+    // Return a new watch function
+    return (watchOptions, handler) => {
+      // Call the original watch function with the compiler as 'this'.
+      const watcher = origWatch.call(compiler, watchOptions, handler);
+      // Remove the 'watch' function from the returned watcher.
+      watcher.watch = () => {
+        logger.log('Hot reloading has been disabled for tests.');
+      };
+      return watcher;
+    };
+  }
+
+  /**
    * Starts the webpack dev server.
+   * @returns {Promise} - A promise that resolves when the server has started.
    */
   start() {
     logger.info('Starting the webpack dev server.');
@@ -59,8 +64,8 @@ class WebpackServer {
     const startPromise = new Promise((resolve, reject) => {
       const compiler = webpack(this.config);
 
-      // Disable hot reloading
-      compiler.watch = watch(compiler);
+      // Override watch to disable hot reloading.
+      compiler.watch = WebpackServer.watch(compiler);
 
       // Add a hooks to report when webpack has completed.
       compiler.hooks.done.tap('Done', (stats) => {
@@ -68,7 +73,6 @@ class WebpackServer {
           logger.error('Webpack compiled with errors.');
           reject();
         } else {
-          logger.info('Webpack compiled successfully.');
           resolve();
         }
       });
@@ -82,7 +86,7 @@ class WebpackServer {
         ...compiler.options.devServer,
         hot: false,
         inline: false,
-        // liveReload: false,
+        liveReload: false,
         host: this.host,
         port: this.port,
         index: this.index,
@@ -98,7 +102,7 @@ class WebpackServer {
           reject(error);
         }
 
-        logger.info(`Webpack server has started listening on port ${this.port}.`);
+        logger.info(`Webpack server has started listening at ${`http://${this.host}:${this.port}/`}.`);
       });
     });
 
@@ -107,6 +111,7 @@ class WebpackServer {
 
   /**
    * Stops the webpack dev server.
+   * @returns {Promise} - A promise that resolves when the server has been stopped.
    */
   stop() {
     logger.info('Closing the webpack dev server.');

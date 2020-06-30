@@ -20,19 +20,20 @@ class ExpressServer {
 
   /**
    * Starts the webpack dev server.
+   * @returns {Promise} - A promise that resolves when the server has started.
    */
   start() {
-    logger.info('Starting the webpack dev server.');
+    logger.info('Starting the express server.');
 
     const startPromise = new Promise((resolve, reject) => {
-      this.server = express();
+      const app = express();
 
-      this.server.use(express.static(this.site, {
+      app.use(express.static(this.site, {
         ...this.index && { index: this.index },
         extensions: ['html', 'htm'],
       }));
 
-      this.server.use([/\/[^.]*$/, '/*.html?'], (_req, res, next) => {
+      app.use([/\/[^.]*$/, '/*.html?'], (_req, res, next) => {
         // Return 404.html if provided.
         res.status(404).sendFile('/404.html', { root: this.site }, () => {
           // If there is an error, bail.
@@ -41,12 +42,13 @@ class ExpressServer {
       });
 
       // Start that server.
-      this.server.listen(this.port, this.host, (error) => {
+      this.server = app.listen(this.port, this.host, (error) => {
         if (error) {
           reject(error);
         }
 
         logger.info(`Express server has started listening at ${`http://${this.host}:${this.port}/`}.`);
+        resolve();
       });
     });
 
@@ -55,6 +57,7 @@ class ExpressServer {
 
   /**
    * Stops the express server.
+   * @returns {Promise} - A promise that resolves when the server has been stopped.
    */
   stop() {
     logger.info('Closing the express server.');
