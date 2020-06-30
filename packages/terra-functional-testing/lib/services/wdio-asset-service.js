@@ -2,24 +2,24 @@ const ExpressServer = require('../express-server/express-server');
 const WebpackServer = require('../webpack-server/webpack-server');
 const Logger = require('../logger/logger');
 
-const logger = new Logger({ prefix: 'wdio-serve-static-service' });
+const logger = new Logger({ prefix: 'wdio-asset-service' });
 
-class WebpackService {
+class AssetService {
   constructor(options = {}) {
     this.options = options;
   }
 
   /**
-   * Prepares the service.
+   * Prepares the asset service.
    */
   async onPrepare() {
-    if (!this.config) {
+    const { config, site } = this.options;
+
+    if (!config && !site) {
       logger.warn('No webpack configuration provided.');
 
       return;
     }
-
-    const { site } = this.options;
 
     if (site) {
       this.server = new ExpressServer(this.options);
@@ -42,4 +42,4 @@ class WebpackService {
   }
 }
 
-module.exports = WebpackService;
+module.exports = AssetService;

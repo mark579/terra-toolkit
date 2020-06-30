@@ -4,6 +4,22 @@ const Logger = require('../logger/logger');
 
 const logger = new Logger({ prefix: 'webpack-server' });
 
+// Create a new proxy watch function
+const watch = (compiler) => {
+  // Store off original watch function.
+  const origWatch = compiler.watch;
+  // Return new watch function
+  return (watchOptions, handler) => {
+    // Call original watch functions with the compiler as 'this'
+    const watcher = origWatch.call(compiler, watchOptions, handler);
+    // Remove the 'watch' function from the returned watcher.
+    watcher.watch = () => {
+      logger.log('Hot reloading has been disabled for tests.');
+    };
+    return watcher;
+  };
+};
+
 class WebpackServer {
   constructor(options = {}) {
     const {
@@ -15,12 +31,23 @@ class WebpackServer {
       theme,
     } = options;
 
-    this.config = config;
     this.host = host || '0.0.0.0';
     this.index = index || 'index.html';
     this.locale = locale;
     this.port = port || '8080';
     this.theme = theme;
+
+    // eslint-disable-next-line global-require, import/no-dynamic-require
+    const webpackConfig = require(config);
+
+    if (typeof webpackConfig === 'function') {
+      this.config = webpackConfig({
+        ...locale && { defaultLocale: locale },
+        ...theme && { theme },
+      }, { p: true });
+    } else {
+      this.config = webpackConfig;
+    }
   }
 
   /**
@@ -31,6 +58,9 @@ class WebpackServer {
 
     const startPromise = new Promise((resolve, reject) => {
       const compiler = webpack(this.config);
+
+      // Disable hot reloading
+      compiler.watch = watch(compiler);
 
       // Add a hooks to report when webpack has completed.
       compiler.hooks.done.tap('Done', (stats) => {
@@ -52,7 +82,7 @@ class WebpackServer {
         ...compiler.options.devServer,
         hot: false,
         inline: false,
-        liveReload: false,
+        // liveReload: false,
         host: this.host,
         port: this.port,
         index: this.index,
