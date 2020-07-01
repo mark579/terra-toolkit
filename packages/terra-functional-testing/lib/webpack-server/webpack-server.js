@@ -8,14 +8,13 @@ class WebpackServer {
   constructor(options = {}) {
     const {
       config,
-      host,
       index,
       locale,
       port,
       theme,
     } = options;
 
-    this.host = host || '0.0.0.0';
+    this.host = '0.0.0.0';
     this.index = index || 'index.html';
     this.locale = locale;
     this.port = port || '8080';

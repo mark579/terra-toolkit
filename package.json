@@ -35,7 +35,9 @@
     "pack": "webpack --config webpack.config.js -p",
     "postinstall": "link-parent-bin && npm run bootstrap:hoist",
     "test": "npm run jest",
-    "wdio": "node ./packages/terra-functional-testing/bin/test-runner.js"
+    "wdio": "rm -rf build && npm run pack && npm run wdio-site && npm run wdio-webpack",
+    "wdio-site": "SITE=build node ./packages/terra-functional-testing/bin/test-runner.js",
+    "wdio-webpack": "node ./packages/terra-functional-testing/bin/test-runner.js"
   },
   "devDependencies": {
     "danger": "^9.1.0",

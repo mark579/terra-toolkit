@@ -6,7 +6,12 @@ const SeleniumDockerService = require('../services/wdio-selenium-docker-service'
 const TerraService = require('../services/wdio-terra-service');
 const AssetService = require('../services/wdio-asset-service');
 
-const { CI, SITE } = process.env;
+const {
+  CI,
+  LOCALE,
+  SITE,
+  THEME,
+} = process.env;
 
 const defaultWebpackPath = path.resolve(process.cwd(), 'webpack.config.js');
 
@@ -123,6 +128,8 @@ exports.config = {
     [TerraService],
     [AssetService, {
       ...SITE && { site: SITE },
+      ...LOCALE && { locale: LOCALE },
+      ...THEME && { theme: THEME },
       ...fs.existsSync(defaultWebpackPath) && { config: defaultWebpackPath },
     }],
     // Do not add the docker service when building on CI.
